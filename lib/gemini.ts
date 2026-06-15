@@ -24,22 +24,13 @@ export type AIResponse = {
 export async function getAIResponse(diaryContent: string): Promise<AIResponse> {
   const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
 
-  const prompt = `あなたは小学5〜6年生向けの英語の先生「Ms. Sunny」です。
-児童が書いた英語日記に返事を書いてください。
+  const prompt = `You are Ms. Sunny, a friendly English teacher for Japanese elementary school students (grade 5-6).
+Reply to this student's diary entry. Return ONLY this JSON (no other text):
+{"comment":"2-3 simple English sentences + 1-2 emoji + one Japanese sentence under 15 chars","grammarNote":"If grammar mistake exists: explain gently in Japanese like 'XXはYYと書くともっとよいよ！'. Otherwise null","todayWord":{"word":"one useful English word","meaning_ja":"Japanese meaning","example":"short simple example"}}
 
-以下のJSONのみ返してください（他のテキスト不要）：
-{
-  "comment": "英語で2〜3文（中学生以下でも分かる簡単な単語のみ）＋絵文字1〜2個＋最後に日本語で一言（15文字以内）",
-  "grammarNote": "文法や単語のミスがあれば「○○は〜と書くともっとよいよ！」と日本語で優しく一言。なければnull",
-  "todayWord": {"word":"次回使ってみてほしい英単語","meaning_ja":"日本語の意味","example":"短くて簡単な例文"}
-}
+Rules: use only basic words (go, play, eat, fun, happy, etc). Be encouraging.
 
-ルール：
-- comment は簡単な英語（I, like, today, went, fun, good など基本単語中心）
-- 間違いを責めず、grammarNote で正しい形をやさしく教える
-- todayWord は日記の内容に関連した、覚えやすい単語1つ
-
-児童の日記：${diaryContent}`
+Diary: ${diaryContent}`
 
   const result = await withRetry(() => model.generateContent(prompt))
   const text = result.response.text()

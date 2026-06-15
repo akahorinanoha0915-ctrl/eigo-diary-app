@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 
 type Entry = {
@@ -15,7 +15,7 @@ type VocabWord = {
   word: string
   meaning_ja: string
   example: string
-  created_at: string
+  created_at?: string
 }
 
 export default function Home() {
@@ -26,9 +26,10 @@ export default function Home() {
   const [entries, setEntries] = useState<Entry[]>([])
   const [vocabulary, setVocabulary] = useState<VocabWord[]>([])
   const [aiComment, setAiComment] = useState('')
-  const [newWords, setNewWords] = useState<VocabWord[]>([])
+  const [grammarNote, setGrammarNote] = useState<string | null>(null)
+  const [todayWord, setTodayWord] = useState<VocabWord | null>(null)
   const [loading, setLoading] = useState(false)
-  const [view, setView] = useState<'diary' | 'history' | 'vocab'>('diary')
+  const [view, setView] = useState<'diary' | 'vocab' | 'history'>('diary')
 
   const login = () => {
     if (classCode && studentNumber) {
@@ -54,7 +55,8 @@ export default function Home() {
     if (!content.trim()) return
     setLoading(true)
     setAiComment('')
-    setNewWords([])
+    setGrammarNote(null)
+    setTodayWord(null)
     const res = await fetch('/api/diary', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -63,7 +65,8 @@ export default function Home() {
     const data = await res.json()
     if (data.aiComment) {
       setAiComment(data.aiComment)
-      setNewWords(data.vocabWords || [])
+      setGrammarNote(data.grammarNote || null)
+      setTodayWord(data.todayWord || null)
       setContent('')
       fetchEntries()
       fetchVocabulary()
@@ -136,7 +139,7 @@ export default function Home() {
             onClick={() => setView('vocab')}
             className={`flex-1 py-2 rounded-xl font-medium text-sm transition ${view === 'vocab' ? 'bg-green-500 text-white' : 'bg-white text-gray-500'}`}
           >
-            📖 単語帳
+            📖 単語帳{vocabulary.length > 0 && <span className="ml-1 text-xs">({vocabulary.length})</span>}
           </button>
           <button
             onClick={() => setView('history')}
@@ -171,24 +174,30 @@ export default function Home() {
             </div>
 
             {aiComment && (
-              <div className="bg-yellow-50 border-2 border-yellow-200 rounded-2xl p-4">
-                <p className="text-sm font-bold text-yellow-700 mb-1">👩‍🏫 Ms. Sunny より</p>
-                <p className="text-sm whitespace-pre-wrap">{aiComment}</p>
-              </div>
-            )}
-
-            {newWords.length > 0 && (
-              <div className="bg-green-50 border-2 border-green-200 rounded-2xl p-4">
-                <p className="text-sm font-bold text-green-700 mb-2">📖 今日の新しい単語！</p>
-                <div className="space-y-2">
-                  {newWords.map((w, i) => (
-                    <div key={i} className="bg-white rounded-xl px-3 py-2">
-                      <span className="font-bold text-green-600">{w.word}</span>
-                      <span className="text-gray-500 text-sm ml-2">= {w.meaning_ja}</span>
-                      <p className="text-xs text-gray-400 mt-0.5">{w.example}</p>
-                    </div>
-                  ))}
+              <div className="space-y-3">
+                <div className="bg-yellow-50 border-2 border-yellow-200 rounded-2xl p-4">
+                  <p className="text-sm font-bold text-yellow-700 mb-1">👩‍🏫 Ms. Sunny より</p>
+                  <p className="text-sm whitespace-pre-wrap">{aiComment}</p>
                 </div>
+
+                {grammarNote && (
+                  <div className="bg-orange-50 border-2 border-orange-200 rounded-2xl p-3">
+                    <p className="text-sm font-bold text-orange-600 mb-1">📝 ちょっとアドバイス</p>
+                    <p className="text-sm text-orange-700">{grammarNote}</p>
+                  </div>
+                )}
+
+                {todayWord && todayWord.word && (
+                  <div className="bg-blue-50 border-2 border-blue-200 rounded-2xl p-4">
+                    <p className="text-sm font-bold text-blue-700 mb-2">💡 次回はこの単語を使ってみよう！</p>
+                    <div className="bg-white rounded-xl px-4 py-3">
+                      <p className="font-bold text-blue-600 text-lg">{todayWord.word}
+                        <span className="text-gray-500 font-normal text-sm ml-2">（{todayWord.meaning_ja}）</span>
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1 italic">{todayWord.example}</p>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -226,7 +235,7 @@ export default function Home() {
                     <div key={i} className="border rounded-xl px-3 py-2 hover:bg-green-50 transition">
                       <div className="flex items-center gap-2">
                         <span className="font-bold text-green-600 text-base">{w.word}</span>
-                        <span className="text-gray-500 text-sm">{w.meaning_ja}</span>
+                        <span className="text-gray-500 text-sm">= {w.meaning_ja}</span>
                       </div>
                       <p className="text-xs text-gray-400 mt-0.5 italic">{w.example}</p>
                     </div>
@@ -264,9 +273,7 @@ export default function Home() {
                   <p className="text-xs text-gray-500">回書いた</p>
                 </div>
                 <div className="bg-green-50 rounded-xl p-3">
-                  <p className="text-2xl font-bold text-green-600">
-                    {vocabulary.length}
-                  </p>
+                  <p className="text-2xl font-bold text-green-600">{vocabulary.length}</p>
                   <p className="text-xs text-gray-500">単語を習得</p>
                 </div>
                 <div className="bg-yellow-50 rounded-xl p-3">

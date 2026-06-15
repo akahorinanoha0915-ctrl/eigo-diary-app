@@ -14,6 +14,7 @@ export default function TeacherPage() {
   const [classCode, setClassCode] = useState('')
   const [loaded, setLoaded] = useState(false)
   const [students, setStudents] = useState<StudentSummary[]>([])
+  const [expanded, setExpanded] = useState<number | null>(null)
 
   const loadClass = async () => {
     if (!classCode) return
@@ -51,7 +52,7 @@ export default function TeacherPage() {
 
   return (
     <main className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-3xl mx-auto">
+      <div className="max-w-4xl mx-auto">
         <h1 className="text-2xl font-bold text-gray-800 mb-1">👩‍🏫 先生用ダッシュボード</h1>
         <p className="text-sm text-gray-500 mb-6">クラスの英語日記の進捗を確認できます</p>
 
@@ -61,6 +62,7 @@ export default function TeacherPage() {
             placeholder="クラスコードを入力（例：5A）"
             value={classCode}
             onChange={e => setClassCode(e.target.value.toUpperCase())}
+            onKeyDown={e => e.key === 'Enter' && loadClass()}
           />
           <button
             onClick={loadClass}
@@ -91,37 +93,34 @@ export default function TeacherPage() {
               </div>
             </div>
 
-            <div className="bg-white rounded-2xl shadow overflow-hidden">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-gray-600">出席番号</th>
-                    <th className="px-4 py-3 text-center text-gray-600">提出回数</th>
-                    <th className="px-4 py-3 text-center text-gray-600">合計単語</th>
-                    <th className="px-4 py-3 text-left text-gray-600">最新日記</th>
-                    <th className="px-4 py-3 text-center text-gray-600">最終提出日</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {students.map(s => (
-                    <tr key={s.student_number} className="border-t hover:bg-gray-50">
-                      <td className="px-4 py-3 font-medium">{s.student_number}番</td>
-                      <td className="px-4 py-3 text-center">
-                        <span className={`px-2 py-1 rounded-full text-xs font-bold ${
-                          s.entry_count === 0 ? 'bg-red-100 text-red-600' :
-                          s.entry_count < 3 ? 'bg-yellow-100 text-yellow-700' :
-                          'bg-green-100 text-green-700'
-                        }`}>
-                          {s.entry_count}回
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-600">{s.total_words}</td>
-                      <td className="px-4 py-3 text-gray-500 max-w-[200px] truncate">{s.latest_entry}</td>
-                      <td className="px-4 py-3 text-center text-gray-500">{s.latest_date}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="space-y-3">
+              {students.map(s => (
+                <div key={s.student_number} className="bg-white rounded-2xl shadow overflow-hidden">
+                  <div
+                    className="flex items-center gap-4 px-5 py-4 cursor-pointer hover:bg-gray-50 transition"
+                    onClick={() => setExpanded(expanded === s.student_number ? null : s.student_number)}
+                  >
+                    <span className="font-bold text-gray-700 w-12">{s.student_number}番</span>
+                    <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                      s.entry_count === 0 ? 'bg-red-100 text-red-600' :
+                      s.entry_count < 3 ? 'bg-yellow-100 text-yellow-700' :
+                      'bg-green-100 text-green-700'
+                    }`}>
+                      {s.entry_count}回
+                    </span>
+                    <span className="text-sm text-gray-500">{s.total_words}語</span>
+                    <span className="flex-1 text-sm text-gray-600 truncate">{s.latest_entry}</span>
+                    <span className="text-xs text-gray-400 shrink-0">{s.latest_date}</span>
+                    <span className="text-gray-400 text-sm">{expanded === s.student_number ? '▲' : '▼'}</span>
+                  </div>
+                  {expanded === s.student_number && s.latest_entry !== '（まだ書いていません）' && (
+                    <div className="px-5 pb-4 border-t bg-sky-50">
+                      <p className="text-xs text-gray-400 mt-3 mb-1">最新の日記（全文）</p>
+                      <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{s.latest_entry}</p>
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
           </>
         )}

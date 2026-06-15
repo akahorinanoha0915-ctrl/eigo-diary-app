@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
-import { getAIComment, extractVocabulary } from '@/lib/gemini'
+import { getAIResponse, extractVocabulary } from '@/lib/gemini'
 
 export async function POST(req: NextRequest) {
   const { classCode, studentNumber, content } = await req.json()
@@ -27,21 +27,17 @@ export async function POST(req: NextRequest) {
     student = newStudent
   }
 
-  // AIコメント生成（エラー時はフォールバック）
-  let aiComment = 'Great job writing today! Keep it up! 🌟\nよく書けました！'
-  try {
-    aiComment = await getAIComment(content)
-  } catch (e) {
-    console.error('Gemini comment error:', e)
-  }
+  // AIコメント生成＆単語抽出（並列）
+  const [aiResult, vocabWords] = await Promise.all([
+    getAIResponse(content).catch(() => ({
+      comment: 'Great job writing today! Keep it up! 🌟\nよく書けました！',
+      grammarNote: null,
+      todayWord: { word: 'wonderful', meaning_ja: '素晴らしい', example: 'It was wonderful!' },
+    })),
+    extractVocabulary(content).catch(() => []),
+  ])
 
-  // 単語抽出（失敗しても続行）
-  let vocabWords: { word: string; meaning_ja: string; example: string }[] = []
-  try {
-    vocabWords = await extractVocabulary(content)
-  } catch (e) {
-    console.error('Gemini vocab error:', e)
-  }
+  const { comment: aiComment, grammarNote, todayWord } = aiResult
 
   // 日記を保存
   const wordCount = content.trim().split(/\s+/).length
@@ -61,10 +57,18 @@ export async function POST(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: '保存に失敗しました' }, { status: 500 })
 
-  // 単語帳に保存（重複はスキップ）
-  if (vocabWords.length > 0) {
-    await supabase.from('vocabulary').upsert(
-      vocabWords.map(v => ({
+  // 単語帳に保存
+  const allWords = [
+    ...vocabWords,
+    ...(todayWord.word ? [todayWord] : []),
+  ]
+  const uniqueWords = allWords.filter(
+    (w, i, arr) => w.word && arr.findIndex(x => x.word === w.word) === i
+  )
+
+  if (uniqueWords.length > 0) {
+    const { error: vocabError } = await supabase.from('vocabulary').upsert(
+      uniqueWords.map(v => ({
         student_id: student!.id,
         word: v.word,
         meaning_ja: v.meaning_ja,
@@ -73,7 +77,8 @@ export async function POST(req: NextRequest) {
       })),
       { onConflict: 'student_id,word', ignoreDuplicates: true }
     )
+    if (vocabError) console.error('Vocab save error:', vocabError)
   }
 
-  return NextResponse.json({ entry, aiComment, vocabWords })
+  return NextResponse.json({ entry, aiComment, grammarNote, todayWord, vocabWords })
 }

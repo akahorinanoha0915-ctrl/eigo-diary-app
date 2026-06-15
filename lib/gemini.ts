@@ -2,17 +2,6 @@ import { GoogleGenerativeAI } from '@google/generative-ai'
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
 
-async function withRetry<T>(fn: () => Promise<T>, retries = 2): Promise<T> {
-  for (let i = 0; i <= retries; i++) {
-    try {
-      return await fn()
-    } catch (e: any) {
-      if (i === retries || e.status !== 503) throw e
-      await new Promise(r => setTimeout(r, 1500 * (i + 1)))
-    }
-  }
-  throw new Error('Max retries exceeded')
-}
 
 export type VocabWord = { word: string; meaning_ja: string; example: string }
 export type AIResponse = {
@@ -32,7 +21,7 @@ Rules: use only basic words (go, play, eat, fun, happy, etc). Be encouraging.
 
 Diary: ${diaryContent}`
 
-  const result = await withRetry(() => model.generateContent(prompt))
+  const result = await model.generateContent(prompt)
   const text = result.response.text()
   const match = text.match(/\{[\s\S]*\}/)
   if (match) {
@@ -58,7 +47,7 @@ JSON配列のみを返してください（他のテキスト不要）：
 
 日記：${diaryContent}`
   try {
-    const result = await withRetry(() => model.generateContent(prompt))
+    const result = await model.generateContent(prompt)
     const text = result.response.text()
     const match = text.match(/\[[\s\S]*\]/)
     if (match) return JSON.parse(match[0])

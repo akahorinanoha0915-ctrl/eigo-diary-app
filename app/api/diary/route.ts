@@ -27,11 +27,21 @@ export async function POST(req: NextRequest) {
     student = newStudent
   }
 
-  // AIコメント生成＆単語抽出（並列）
-  const [aiComment, vocabWords] = await Promise.all([
-    getAIComment(content),
-    extractVocabulary(content),
-  ])
+  // AIコメント生成（エラー時はフォールバック）
+  let aiComment = 'Great job writing today! Keep it up! 🌟\nよく書けました！'
+  try {
+    aiComment = await getAIComment(content)
+  } catch (e) {
+    console.error('Gemini comment error:', e)
+  }
+
+  // 単語抽出（失敗しても続行）
+  let vocabWords: { word: string; meaning_ja: string; example: string }[] = []
+  try {
+    vocabWords = await extractVocabulary(content)
+  } catch (e) {
+    console.error('Gemini vocab error:', e)
+  }
 
   // 日記を保存
   const wordCount = content.trim().split(/\s+/).length
@@ -40,7 +50,7 @@ export async function POST(req: NextRequest) {
   const { data: entry, error } = await supabase
     .from('diary_entries')
     .insert({
-      student_id: student.id,
+      student_id: student!.id,
       content,
       ai_comment: aiComment,
       word_count: wordCount,

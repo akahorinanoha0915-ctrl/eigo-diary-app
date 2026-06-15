@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
-import { getAIComment } from '@/lib/gemini'
+import { getAIComment, extractVocabulary } from '@/lib/gemini'
 
 export async function POST(req: NextRequest) {
   const { classCode, studentNumber, content } = await req.json()
@@ -27,8 +27,11 @@ export async function POST(req: NextRequest) {
     student = newStudent
   }
 
-  // AIコメント生成
-  const aiComment = await getAIComment(content)
+  // AIコメント生成＆単語抽出（並列）
+  const [aiComment, vocabWords] = await Promise.all([
+    getAIComment(content),
+    extractVocabulary(content),
+  ])
 
   // 日記を保存
   const wordCount = content.trim().split(/\s+/).length
@@ -48,5 +51,19 @@ export async function POST(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: '保存に失敗しました' }, { status: 500 })
 
-  return NextResponse.json({ entry, aiComment })
+  // 単語帳に保存（重複はスキップ）
+  if (vocabWords.length > 0) {
+    await supabase.from('vocabulary').upsert(
+      vocabWords.map(v => ({
+        student_id: student!.id,
+        word: v.word,
+        meaning_ja: v.meaning_ja,
+        example: v.example,
+        diary_entry_id: entry.id,
+      })),
+      { onConflict: 'student_id,word', ignoreDuplicates: true }
+    )
+  }
+
+  return NextResponse.json({ entry, aiComment, vocabWords })
 }

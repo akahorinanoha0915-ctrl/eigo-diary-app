@@ -11,20 +11,30 @@ type Entry = {
   created_at: string
 }
 
+type VocabWord = {
+  word: string
+  meaning_ja: string
+  example: string
+  created_at: string
+}
+
 export default function Home() {
   const [classCode, setClassCode] = useState('')
   const [studentNumber, setStudentNumber] = useState('')
   const [loggedIn, setLoggedIn] = useState(false)
   const [content, setContent] = useState('')
   const [entries, setEntries] = useState<Entry[]>([])
+  const [vocabulary, setVocabulary] = useState<VocabWord[]>([])
   const [aiComment, setAiComment] = useState('')
+  const [newWords, setNewWords] = useState<VocabWord[]>([])
   const [loading, setLoading] = useState(false)
-  const [view, setView] = useState<'diary' | 'history'>('diary')
+  const [view, setView] = useState<'diary' | 'history' | 'vocab'>('diary')
 
   const login = () => {
     if (classCode && studentNumber) {
       setLoggedIn(true)
       fetchEntries()
+      fetchVocabulary()
     }
   }
 
@@ -34,10 +44,17 @@ export default function Home() {
     setEntries(data.entries || [])
   }
 
+  const fetchVocabulary = async () => {
+    const res = await fetch(`/api/vocabulary?classCode=${classCode}&studentNumber=${studentNumber}`)
+    const data = await res.json()
+    setVocabulary(data.vocabulary || [])
+  }
+
   const submitDiary = async () => {
     if (!content.trim()) return
     setLoading(true)
     setAiComment('')
+    setNewWords([])
     const res = await fetch('/api/diary', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -46,8 +63,10 @@ export default function Home() {
     const data = await res.json()
     if (data.aiComment) {
       setAiComment(data.aiComment)
+      setNewWords(data.vocabWords || [])
       setContent('')
       fetchEntries()
+      fetchVocabulary()
     }
     setLoading(false)
   }
@@ -111,13 +130,19 @@ export default function Home() {
             onClick={() => setView('diary')}
             className={`flex-1 py-2 rounded-xl font-medium text-sm transition ${view === 'diary' ? 'bg-sky-500 text-white' : 'bg-white text-gray-500'}`}
           >
-            ✏️ 今日の日記
+            ✏️ 日記
+          </button>
+          <button
+            onClick={() => setView('vocab')}
+            className={`flex-1 py-2 rounded-xl font-medium text-sm transition ${view === 'vocab' ? 'bg-green-500 text-white' : 'bg-white text-gray-500'}`}
+          >
+            📖 単語帳
           </button>
           <button
             onClick={() => setView('history')}
             className={`flex-1 py-2 rounded-xl font-medium text-sm transition ${view === 'history' ? 'bg-sky-500 text-white' : 'bg-white text-gray-500'}`}
           >
-            📈 成長グラフ
+            📈 成長
           </button>
         </div>
 
@@ -152,9 +177,24 @@ export default function Home() {
               </div>
             )}
 
+            {newWords.length > 0 && (
+              <div className="bg-green-50 border-2 border-green-200 rounded-2xl p-4">
+                <p className="text-sm font-bold text-green-700 mb-2">📖 今日の新しい単語！</p>
+                <div className="space-y-2">
+                  {newWords.map((w, i) => (
+                    <div key={i} className="bg-white rounded-xl px-3 py-2">
+                      <span className="font-bold text-green-600">{w.word}</span>
+                      <span className="text-gray-500 text-sm ml-2">= {w.meaning_ja}</span>
+                      <p className="text-xs text-gray-400 mt-0.5">{w.example}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {entries.length > 0 && (
               <div className="bg-white rounded-2xl shadow p-4">
-                <p className="text-sm font-bold text-gray-600 mb-2">📖 最近の日記</p>
+                <p className="text-sm font-bold text-gray-600 mb-2">📚 最近の日記</p>
                 {entries.slice(-3).reverse().map(e => (
                   <div key={e.id} className="border-b last:border-0 py-2">
                     <p className="text-xs text-gray-400">{new Date(e.created_at).toLocaleDateString('ja-JP')}</p>
@@ -164,6 +204,36 @@ export default function Home() {
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {view === 'vocab' && (
+          <div className="space-y-4">
+            <div className="bg-white rounded-2xl shadow p-4">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-sm font-bold text-gray-600">📖 わたしの単語帳</p>
+                <span className="bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded-full">
+                  {vocabulary.length} 語
+                </span>
+              </div>
+              {vocabulary.length === 0 ? (
+                <p className="text-center text-gray-400 py-8 text-sm">
+                  日記を書くと単語が自動で追加されるよ！
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {vocabulary.map((w, i) => (
+                    <div key={i} className="border rounded-xl px-3 py-2 hover:bg-green-50 transition">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-green-600 text-base">{w.word}</span>
+                        <span className="text-gray-500 text-sm">{w.meaning_ja}</span>
+                      </div>
+                      <p className="text-xs text-gray-400 mt-0.5 italic">{w.example}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -195,9 +265,9 @@ export default function Home() {
                 </div>
                 <div className="bg-green-50 rounded-xl p-3">
                   <p className="text-2xl font-bold text-green-600">
-                    {entries.reduce((sum, e) => sum + e.word_count, 0)}
+                    {vocabulary.length}
                   </p>
-                  <p className="text-xs text-gray-500">合計単語</p>
+                  <p className="text-xs text-gray-500">単語を習得</p>
                 </div>
                 <div className="bg-yellow-50 rounded-xl p-3">
                   <p className="text-2xl font-bold text-yellow-600">
